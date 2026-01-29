@@ -39,6 +39,11 @@ body {
   font-size: 28px;
 }
 
+.lede {
+  margin: 0;
+  color: var(--muted);
+}
+
 .scoreboard {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -68,6 +73,13 @@ body {
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
+}
+
+.controls label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 .controls input[type="number"] {
@@ -107,6 +119,16 @@ body {
   font-size: 12px;
 }
 
+.status-pill.status-success {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-pill.status-error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -130,6 +152,116 @@ body {
 .panel h3 {
   margin-top: 0;
   margin-bottom: 12px;
+}
+
+.panel-subtitle {
+  margin-top: 0;
+  color: var(--muted);
+}
+
+.plan {
+  display: grid;
+  gap: 16px;
+}
+
+.plan-grid {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .plan-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.plan-card {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.plan-card h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.lineup {
+  display: grid;
+  gap: 12px;
+}
+
+.lineup-row {
+  display: grid;
+  gap: 8px;
+}
+
+.lineup-row label {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.lineup-row .row-selects {
+  display: grid;
+  gap: 6px;
+}
+
+.lineup-row select,
+.plan-card select,
+.replay-controls select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.slider {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.slider label {
+  font-weight: 600;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+}
+
+.slider input[type="range"] {
+  width: 100%;
+}
+
+.plan-output {
+  display: grid;
+  gap: 10px;
+}
+
+.plan-output textarea {
+  width: 100%;
+  min-height: 180px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 12px;
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 12px;
+}
+
+.plan-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.replay-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .stat-grid {

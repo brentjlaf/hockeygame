@@ -9,7 +9,8 @@
 <body>
   <div class="page">
     <header class="hero">
-      <h1>Game Center: Play-by-Play & Highlights</h1>
+      <h1>Game Center: Find Match, Set Plan, Replay</h1>
+      <p class="lede">Match with a human if available, otherwise jump into an AI matchup immediately.</p>
       <div class="scoreboard">
         <div class="score-card">
           <h2 id="homeName">Home</h2>
@@ -25,26 +26,93 @@
           <div class="status-pill" id="lastUpdated">Updated —</div>
         </div>
       </div>
+      <div class="scoreboard" id="matchSummary">
+        <div class="score-card">
+          <h2>Matchmaking</h2>
+          <div class="score" id="matchStatus">Idle</div>
+          <div class="status-pill" id="matchOpponent">Opponent —</div>
+        </div>
+        <div class="score-card">
+          <h2>Match ID</h2>
+          <div class="score" id="matchId">—</div>
+          <div class="status-pill" id="matchSeed">Plan pending</div>
+        </div>
+      </div>
       <div class="controls">
         <label>
-          Game ID
-          <input type="number" id="gameIdInput" min="1" />
+          Team ID
+          <input type="number" id="teamIdInput" min="1" />
         </label>
-        <button class="button primary" id="loadGame">Load game</button>
+        <label>
+          Match ID
+          <input type="number" id="matchIdInput" min="1" />
+        </label>
+        <button class="button primary" id="findMatch">Find match</button>
+        <button class="button" id="submitPlan">Submit plan</button>
+        <button class="button" id="loadReplay">Load replay</button>
         <button class="button" id="refresh">Refresh</button>
-        <button class="button live" id="toggleLive">Live: On</button>
       </div>
     </header>
 
     <div class="layout">
       <section class="panel">
-        <h3>Highlights Summary</h3>
-        <div class="stat-grid" id="statGrid"></div>
-        <ol class="highlight-list" id="highlightList"></ol>
+        <h3>Lineup + Tactics</h3>
+        <p class="panel-subtitle">Pick 4 lines (3 forwards + 2 defense), a starting goalie, and tactics. Save as plan JSON.</p>
+        <form class="plan" id="planForm">
+          <div class="plan-grid">
+            <div class="plan-card">
+              <h4>Lines 1–4 (F3 + D2)</h4>
+              <div class="lineup" id="lineupContainer"></div>
+            </div>
+            <div class="plan-card">
+              <h4>Starting Goalie</h4>
+              <select id="goalieSelect"></select>
+            </div>
+            <div class="plan-card">
+              <h4>Tactics</h4>
+              <div class="slider">
+                <label> Aggression <span id="aggressionValue">55</span></label>
+                <input type="range" id="aggression" min="0" max="100" value="55" />
+              </div>
+              <div class="slider">
+                <label> Forecheck <span id="forecheckValue">50</span></label>
+                <input type="range" id="forecheck" min="0" max="100" value="50" />
+              </div>
+              <div class="slider">
+                <label> Shoot Bias <span id="shootBiasValue">60</span></label>
+                <input type="range" id="shootBias" min="0" max="100" value="60" />
+              </div>
+              <div class="slider">
+                <label> Risk <span id="riskValue">45</span></label>
+                <input type="range" id="risk" min="0" max="100" value="45" />
+              </div>
+            </div>
+          </div>
+          <div class="plan-output">
+            <div class="plan-meta">
+              <strong>plan_json</strong>
+              <span id="planStatus" class="status-pill">Not submitted</span>
+            </div>
+            <textarea id="planJson" rows="10"></textarea>
+          </div>
+        </form>
       </section>
 
       <section class="panel">
-        <h3>Play-by-Play Feed</h3>
+        <h3>Replay Feed</h3>
+        <div class="replay-controls">
+          <button class="button" id="replayPlay">Play</button>
+          <button class="button" id="replayPause">Pause</button>
+          <button class="button" id="replayReset">Reset</button>
+          <label>
+            Speed
+            <select id="replaySpeed">
+              <option value="450">x1</option>
+              <option value="250">x2</option>
+              <option value="120">x4</option>
+            </select>
+          </label>
+        </div>
         <div class="feed" id="feed"></div>
       </section>
     </div>
