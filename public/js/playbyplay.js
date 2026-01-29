@@ -126,7 +126,7 @@ function stopLive() {
 
 async function loadMatch() {
   if (!state.matchId) return;
-  const res = await fetch(`/api/match_result.php?match_id=${state.matchId}`);
+  const res = await fetch(`api/match_result.php?match_id=${state.matchId}`);
   const data = await res.json();
   if (data.error) {
     elements.feed.innerHTML = `<div class="empty">${data.error}</div>`;
@@ -147,7 +147,7 @@ async function loadMatch() {
 
 async function loadRoster() {
   if (!state.teamId) return;
-  const res = await fetch(`/api/teams.php?team_id=${state.teamId}`);
+  const res = await fetch(`api/teams.php?team_id=${state.teamId}`);
   const data = await res.json();
   if (data.error) {
     updatePlanStatus(data.error, 'error');
@@ -266,7 +266,7 @@ async function findMatch() {
     updatePlanStatus('Team ID required', 'error');
     return;
   }
-  const res = await fetch(`/api/match_find.php?team_id=${state.teamId}`);
+  const res = await fetch(`api/match_find.php?team_id=${state.teamId}`);
   const data = await res.json();
   if (data.error) {
     updatePlanStatus(data.error, 'error');
@@ -294,7 +294,7 @@ async function submitPlan() {
     updatePlanStatus('Plan JSON invalid', 'error');
     return;
   }
-  const res = await fetch(`/api/match_submit.php?team_id=${state.teamId}`, {
+  const res = await fetch(`api/match_submit.php?team_id=${state.teamId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ match_id: state.matchId, plan }),
