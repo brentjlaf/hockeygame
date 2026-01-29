@@ -13,6 +13,8 @@ function simulate_match(int $matchId): void {
   $homeId = (int)$match['home_team_id'];
   $awayId = (int)$match['away_team_id'];
   $seed = (int)$match['seed'];
+  $seasonId = (int)$match['season_id'];
+  $wasDone = $match['status'] === 'DONE';
 
   // Load plans (fallback if missing)
   $plans = [];
@@ -85,6 +87,8 @@ function simulate_match(int $matchId): void {
 
   $homeScore = 0;
   $awayScore = 0;
+  $teamStats = init_team_stats($homeId, $awayId);
+  $playerStats = init_player_stats($homePlayers, $homeId, $awayPlayers, $awayId);
 
   // Remove old events if re-simulated
   $pdo->prepare("DELETE FROM match_events WHERE match_id=?")->execute([$matchId]);
@@ -123,6 +127,7 @@ function simulate_match(int $matchId): void {
         $attTeamId = $homePush ? $homeId : $awayId;
         $attTeamName = $homePush ? $homeTeam['name'] : $awayTeam['name'];
         $defGoalie = $homePush ? $awayGoalie : $homeGoalie;
+        $defTeamId = $homePush ? $awayId : $homeId;
 
         $attPlayers = $homePush ? $homePlayers : $awayPlayers;
         $defPlayers = $homePush ? $awayPlayers : $homePlayers;
@@ -150,12 +155,31 @@ function simulate_match(int $matchId): void {
           ])
         ]);
 
+        $shooterId = (int)$shooter['id'];
+        if (isset($playerStats[$shooterId])) {
+          $playerStats[$shooterId]['shots']++;
+        }
+        $teamStats[$attTeamId]['shots_for']++;
+        $teamStats[$defTeamId]['shots_against']++;
+        $defGoalieId = (int)$defGoalie['id'];
+        if (isset($playerStats[$defGoalieId])) {
+          $playerStats[$defGoalieId]['shots_against']++;
+        }
+
         if ($x < $goalProb) {
           if ($homePush) $homeScore++; else $awayScore++;
+
+          $assistIds = pick_assists($rng, $attPlayers, $shooterId);
+          foreach ($assistIds as $assistId) {
+            if (isset($playerStats[$assistId])) {
+              $playerStats[$assistId]['assists']++;
+            }
+          }
 
           insert_event($matchId, $period, $tick, $gameLeft, 'GOAL', [
             'team_id' => $attTeamId,
             'shooter_id' => (int)$shooter['id'],
+            'assist_ids' => $assistIds,
             'lane' => $lane,
             'home_score' => $homeScore,
             'away_score' => $awayScore,
@@ -168,6 +192,11 @@ function simulate_match(int $matchId): void {
               'away' => $awayScore
             ])
           ]);
+          if (isset($playerStats[$shooterId])) {
+            $playerStats[$shooterId]['goals']++;
+          }
+          $teamStats[$attTeamId]['goals_for']++;
+          $teamStats[$defTeamId]['goals_against']++;
         } elseif ($x < ($goalProb + $saveProb)) {
           insert_event($matchId, $period, $tick, $gameLeft, 'SAVE', [
             'goalie_id' => (int)$defGoalie['id'],
@@ -176,6 +205,9 @@ function simulate_match(int $matchId): void {
               'goalie' => $defGoalie['name']
             ])
           ]);
+          if (isset($playerStats[$defGoalieId])) {
+            $playerStats[$defGoalieId]['saves']++;
+          }
         } else {
           if ($rng->float() < 0.5) {
             insert_event($matchId, $period, $tick, $gameLeft, 'MISS', [
@@ -253,9 +285,49 @@ function simulate_match(int $matchId): void {
     }
   }
 
+  $teamStats[$homeId]['games_played'] = 1;
+  $teamStats[$awayId]['games_played'] = 1;
+  $teamStats[$homeId]['goals_for'] = $homeScore;
+  $teamStats[$homeId]['goals_against'] = $awayScore;
+  $teamStats[$awayId]['goals_for'] = $awayScore;
+  $teamStats[$awayId]['goals_against'] = $homeScore;
+
+  $homeGoalieId = (int)$homeGoalie['id'];
+  $awayGoalieId = (int)$awayGoalie['id'];
+
+  if ($homeScore > $awayScore) {
+    $teamStats[$homeId]['wins'] = 1;
+    $teamStats[$awayId]['losses'] = 1;
+    $teamStats[$homeId]['points'] = 2;
+    if (isset($playerStats[$homeGoalieId])) {
+      $playerStats[$homeGoalieId]['wins'] = 1;
+    }
+  } elseif ($awayScore > $homeScore) {
+    $teamStats[$awayId]['wins'] = 1;
+    $teamStats[$homeId]['losses'] = 1;
+    $teamStats[$awayId]['points'] = 2;
+    if (isset($playerStats[$awayGoalieId])) {
+      $playerStats[$awayGoalieId]['wins'] = 1;
+    }
+  } else {
+    $teamStats[$homeId]['ties'] = 1;
+    $teamStats[$awayId]['ties'] = 1;
+    $teamStats[$homeId]['points'] = 1;
+    $teamStats[$awayId]['points'] = 1;
+  }
+
+  foreach ($playerStats as &$stats) {
+    $stats['points'] = $stats['goals'] + $stats['assists'];
+  }
+  unset($stats);
+
   $pdo->prepare("UPDATE matches
     SET home_score=?, away_score=?, status='DONE', simulated_at=NOW()
     WHERE id=?")->execute([$homeScore, $awayScore, $matchId]);
+
+  if (!$wasDone) {
+    record_match_stats($pdo, $matchId, $seasonId, $teamStats, $playerStats);
+  }
 }
 
 function index_players_by_id(array $players): array {
@@ -361,4 +433,181 @@ function insert_event(int $matchId, int $period, int $tick, int $gameLeft, strin
     $matchId, $period, $tick, $gameLeft, $type,
     json_encode($payload, JSON_UNESCAPED_SLASHES)
   ]);
+}
+
+function init_team_stats(int $homeId, int $awayId): array {
+  return [
+    $homeId => [
+      'team_id' => $homeId,
+      'games_played' => 0,
+      'wins' => 0,
+      'losses' => 0,
+      'ties' => 0,
+      'goals_for' => 0,
+      'goals_against' => 0,
+      'points' => 0,
+      'shots_for' => 0,
+      'shots_against' => 0,
+    ],
+    $awayId => [
+      'team_id' => $awayId,
+      'games_played' => 0,
+      'wins' => 0,
+      'losses' => 0,
+      'ties' => 0,
+      'goals_for' => 0,
+      'goals_against' => 0,
+      'points' => 0,
+      'shots_for' => 0,
+      'shots_against' => 0,
+    ],
+  ];
+}
+
+function init_player_stats(array $homePlayers, int $homeId, array $awayPlayers, int $awayId): array {
+  $stats = [];
+  foreach ($homePlayers as $player) {
+    $stats[(int)$player['id']] = [
+      'player_id' => (int)$player['id'],
+      'team_id' => $homeId,
+      'games_played' => 1,
+      'goals' => 0,
+      'assists' => 0,
+      'points' => 0,
+      'shots' => 0,
+      'saves' => 0,
+      'shots_against' => 0,
+      'wins' => 0,
+    ];
+  }
+  foreach ($awayPlayers as $player) {
+    $stats[(int)$player['id']] = [
+      'player_id' => (int)$player['id'],
+      'team_id' => $awayId,
+      'games_played' => 1,
+      'goals' => 0,
+      'assists' => 0,
+      'points' => 0,
+      'shots' => 0,
+      'saves' => 0,
+      'shots_against' => 0,
+      'wins' => 0,
+    ];
+  }
+
+  return $stats;
+}
+
+function pick_assists(RNG $rng, array $playersById, int $shooterId): array {
+  $skaters = array_values(array_filter($playersById, fn($p) => $p['pos'] !== 'G' && (int)$p['id'] !== $shooterId));
+  if (!$skaters) return [];
+  usort($skaters, fn($a,$b) => (($b['pass_attr'] ?? 0) <=> ($a['pass_attr'] ?? 0)));
+  $pool = array_slice($skaters, 0, min(8, count($skaters)));
+  $assistCount = $rng->int(0, 2);
+  $assists = [];
+  $available = $pool;
+  for ($i = 0; $i < $assistCount && $available; $i++) {
+    $idx = $rng->int(0, count($available) - 1);
+    $assists[] = (int)$available[$idx]['id'];
+    array_splice($available, $idx, 1);
+  }
+  return $assists;
+}
+
+function record_match_stats(PDO $pdo, int $matchId, int $seasonId, array $teamStats, array $playerStats): void {
+  $pdo->beginTransaction();
+
+  $teamStmt = $pdo->prepare("
+    INSERT INTO team_season_stats(season_id, team_id, games_played, wins, losses, ties, goals_for, goals_against, points)
+    VALUES(?,?,?,?,?,?,?,?,?)
+    ON DUPLICATE KEY UPDATE
+      games_played = games_played + VALUES(games_played),
+      wins = wins + VALUES(wins),
+      losses = losses + VALUES(losses),
+      ties = ties + VALUES(ties),
+      goals_for = goals_for + VALUES(goals_for),
+      goals_against = goals_against + VALUES(goals_against),
+      points = points + VALUES(points)
+  ");
+
+  foreach ($teamStats as $stats) {
+    $teamStmt->execute([
+      $seasonId,
+      $stats['team_id'],
+      $stats['games_played'],
+      $stats['wins'],
+      $stats['losses'],
+      $stats['ties'],
+      $stats['goals_for'],
+      $stats['goals_against'],
+      $stats['points'],
+    ]);
+  }
+
+  $seasonStmt = $pdo->prepare("
+    INSERT INTO player_season_stats(
+      season_id, player_id, team_id, games_played, goals, assists, points,
+      shots, saves, shots_against, wins
+    )
+    VALUES(?,?,?,?,?,?,?,?,?,?,?)
+    ON DUPLICATE KEY UPDATE
+      games_played = games_played + VALUES(games_played),
+      goals = goals + VALUES(goals),
+      assists = assists + VALUES(assists),
+      points = points + VALUES(points),
+      shots = shots + VALUES(shots),
+      saves = saves + VALUES(saves),
+      shots_against = shots_against + VALUES(shots_against),
+      wins = wins + VALUES(wins)
+  ");
+
+  $matchStmt = $pdo->prepare("
+    INSERT INTO player_match_stats(
+      match_id, season_id, player_id, team_id, games_played, goals, assists, points,
+      shots, saves, shots_against, wins
+    )
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+    ON DUPLICATE KEY UPDATE
+      games_played = VALUES(games_played),
+      goals = VALUES(goals),
+      assists = VALUES(assists),
+      points = VALUES(points),
+      shots = VALUES(shots),
+      saves = VALUES(saves),
+      shots_against = VALUES(shots_against),
+      wins = VALUES(wins)
+  ");
+
+  foreach ($playerStats as $stats) {
+    $seasonStmt->execute([
+      $seasonId,
+      $stats['player_id'],
+      $stats['team_id'],
+      $stats['games_played'],
+      $stats['goals'],
+      $stats['assists'],
+      $stats['points'],
+      $stats['shots'],
+      $stats['saves'],
+      $stats['shots_against'],
+      $stats['wins'],
+    ]);
+
+    $matchStmt->execute([
+      $matchId,
+      $seasonId,
+      $stats['player_id'],
+      $stats['team_id'],
+      $stats['games_played'],
+      $stats['goals'],
+      $stats['assists'],
+      $stats['points'],
+      $stats['shots'],
+      $stats['saves'],
+      $stats['shots_against'],
+      $stats['wins'],
+    ]);
+  }
+
+  $pdo->commit();
 }

@@ -28,6 +28,8 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
     .rank { width:48px; text-align:center; }
     .right { text-align:right; }
     .empty { padding:16px; background:#111c2b; border-radius:8px; }
+    th.sortable { cursor:pointer; }
+    th.sortable:after { content:" ⬍"; font-size:10px; color:#64748b; }
   </style>
 </head>
 <body>
@@ -40,16 +42,16 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
     <table>
       <thead>
         <tr>
-          <th class="rank">#</th>
-          <th>Team</th>
-          <th class="right">GP</th>
-          <th class="right">W</th>
-          <th class="right">L</th>
-          <th class="right">T</th>
-          <th class="right">GF</th>
-          <th class="right">GA</th>
-          <th class="right">DIFF</th>
-          <th class="right">PTS</th>
+          <th class="rank sortable" data-type="number">#</th>
+          <th class="sortable" data-type="string">Team</th>
+          <th class="right sortable" data-type="number">GP</th>
+          <th class="right sortable" data-type="number">W</th>
+          <th class="right sortable" data-type="number">L</th>
+          <th class="right sortable" data-type="number">T</th>
+          <th class="right sortable" data-type="number">GF</th>
+          <th class="right sortable" data-type="number">GA</th>
+          <th class="right sortable" data-type="number">DIFF</th>
+          <th class="right sortable" data-type="number">PTS</th>
         </tr>
       </thead>
       <tbody>
@@ -70,5 +72,30 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
       </tbody>
     </table>
   <?php endif; ?>
+  <script>
+    const table = document.querySelector('table');
+    if (table) {
+      const getCellValue = (row, index) => row.children[index]?.textContent?.trim() ?? '';
+      const sortState = {};
+      table.querySelectorAll('th.sortable').forEach((header, index) => {
+        header.addEventListener('click', () => {
+          const type = header.dataset.type || 'string';
+          sortState[index] = !sortState[index];
+          const direction = sortState[index] ? 1 : -1;
+          const rows = Array.from(table.querySelectorAll('tbody tr'));
+          rows.sort((a, b) => {
+            const aVal = getCellValue(a, index);
+            const bVal = getCellValue(b, index);
+            if (type === 'number') {
+              return (parseFloat(aVal) - parseFloat(bVal)) * direction;
+            }
+            return aVal.localeCompare(bVal) * direction;
+          });
+          const tbody = table.querySelector('tbody');
+          rows.forEach(row => tbody.appendChild(row));
+        });
+      });
+    }
+  </script>
 </body>
 </html>
