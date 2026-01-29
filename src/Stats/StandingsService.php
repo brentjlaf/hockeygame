@@ -70,7 +70,7 @@ final class StandingsService {
     }
 
     foreach ($standings as &$row) {
-      $row['points'] = ($row['wins'] * 2) + $row['ties'];
+      $row['points'] = $row['wins'] * 2;
       $row['goal_diff'] = $row['goals_for'] - $row['goals_against'];
     }
     unset($row);
