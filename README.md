@@ -29,6 +29,9 @@ Then visit:
 ## Quick test
 Phase 1 uses `team_id` in the query string instead of real auth.
 
+## Maintenance
+Unused scaffolding files have been removed (the `src/App.php` placeholder, `config/env.php`, `db/migrations/001_init.sql`, and the root `.gitkeep`). Keep new scaffolding files only when they are actively referenced by the app or docs.
+
 ### Create a team
 ```sql
 INSERT INTO teams(user_id,name,rating,is_bot) VALUES(NULL,'My Team',1000,0);
