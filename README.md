@@ -10,7 +10,10 @@
 ## Local setup
 1) Create a MySQL DB named `hockeysim` (or set `DB_NAME`).
 2) Run `schema.sql` against that database.
-3) Configure DB credentials in `config/database.php` or via `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` env vars.
+3) Configure DB credentials in `config/database.php`, via `config/.env.php`, or via `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` env vars.
+
+### Installer
+Start the PHP server and visit `/install.php` to generate `config/.env.php` and import `schema.sql`.
 
 ## Run the app
 From the repo root:
@@ -20,6 +23,7 @@ php -S localhost:8000 -t public public/index.php
 
 Then visit:
 - `http://localhost:8000/` for the replay UI
+- `http://localhost:8000/install.php` to configure the database
 - `http://localhost:8000/api/match_find.php?team_id=1` for API endpoints
 
 ## Quick test
