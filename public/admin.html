@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rink Micro-Sim Admin Control Room</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>Admin Control Room</h1>
+      <p class="lede">Run administrative tasks, inspect recent matches, and keep the league running smoothly.</p>
+      <div class="quick-links">
+        <a class="button" href="playbyplay.html">Back to game center</a>
+        <a class="button" href="standings.php">View standings</a>
+        <a class="button" href="leaders.php">View league leaders</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="panel">
+        <h3>Match operations</h3>
+        <p class="panel-subtitle">Simulate or cancel matches. Actions run immediately and update the match status.</p>
+        <div class="admin-actions">
+          <label>
+            Match ID
+            <input type="number" id="adminMatchId" min="1" />
+          </label>
+          <div class="admin-buttons">
+            <button class="button primary" id="simulateMatch">Simulate match</button>
+            <button class="button" id="cancelMatch">Cancel match</button>
+          </div>
+          <div class="status-pill" id="adminStatus">Awaiting action</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="admin-header">
+          <div>
+            <h3>Recent matches</h3>
+            <p class="panel-subtitle">Latest 20 matches in the system.</p>
+          </div>
+          <button class="button" id="refreshMatches">Refresh list</button>
+        </div>
+        <div class="admin-table" id="matchesTable">
+          <div class="empty">Loading matches…</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>

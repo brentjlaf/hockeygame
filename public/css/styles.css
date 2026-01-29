@@ -342,3 +342,68 @@ body {
 .empty {
   color: var(--muted);
 }
+
+.admin-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-actions label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.admin-actions input[type="number"] {
+  width: 120px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.admin-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.admin-table {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-row {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.6fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 0.9fr) minmax(80px, 0.6fr) minmax(120px, 0.9fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  font-size: 14px;
+}
+
+.admin-row--header {
+  background: #e2e8f0;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 800px) {
+  .admin-row {
+    grid-template-columns: 1fr;
+  }
+}
