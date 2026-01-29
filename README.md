@@ -29,6 +29,12 @@ Then visit:
 ## Quick test
 Phase 1 uses `team_id` in the query string instead of real auth.
 
+## Phase 0 rules
+- Multiplayer default: asynchronous quick match (waits briefly for a human, then fills with an AI).
+- Match timing: 3 periods × 40 ticks per period (1 real second per tick = 30 game seconds).
+- Standings: win = 2 points, loss = 0 points (ties tracked but no points yet).
+- Simulation is server-side only; results and play-by-play live in the DB.
+
 ## Maintenance
 Unused scaffolding files have been removed (the `src/App.php` placeholder, `config/env.php`, `db/migrations/001_init.sql`, and the root `.gitkeep`). Keep new scaffolding files only when they are actively referenced by the app or docs.
 

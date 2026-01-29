@@ -15,6 +15,11 @@ define('DB_HOST', $dbConfig['host']);
 define('DB_NAME', $dbConfig['name']);
 define('DB_USER', $dbConfig['user']);
 define('DB_PASS', $dbConfig['pass']);
+define('MATCH_PERIODS', 3);
+define('MATCH_TICKS_PER_PERIOD', 40);
+define('MATCH_SECONDS_PER_TICK', 30);
+define('MATCH_HUMAN_WAIT_SECONDS', 10);
+define('MATCH_SUBMISSION_WINDOW_MINUTES', 10);
 
 function db(): PDO {
   static $pdo = null;

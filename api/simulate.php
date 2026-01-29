@@ -94,9 +94,11 @@ function simulate_match(int $matchId): void {
   $homeBias = team_attack_bias($homeTeam, $plans[$homeId]);
   $awayBias = team_attack_bias($awayTeam, $plans[$awayId]);
 
-  for ($period = 1; $period <= 3; $period++) {
+  $periodLength = MATCH_TICKS_PER_PERIOD * MATCH_SECONDS_PER_TICK;
 
-    $gameLeft = 1200;
+  for ($period = 1; $period <= MATCH_PERIODS; $period++) {
+
+    $gameLeft = $periodLength;
     insert_event($matchId, $period, 0, $gameLeft, 'FACEOFF', [
       'text' => render($T, 'START_PERIOD', $seed, $period*1000 + 1, [
         'time' => hockey_clock($gameLeft),
@@ -104,8 +106,8 @@ function simulate_match(int $matchId): void {
       ])
     ]);
 
-    for ($tick = 0; $tick < 40; $tick++) {
-      $gameLeft = 1200 - ($tick * 30);
+    for ($tick = 0; $tick < MATCH_TICKS_PER_PERIOD; $tick++) {
+      $gameLeft = $periodLength - ($tick * MATCH_SECONDS_PER_TICK);
       $saltBase = $period * 1000 + $tick * 10;
 
       $homePush = ($rng->float() + $homeBias) > ($rng->float() + $awayBias);
@@ -238,7 +240,7 @@ function simulate_match(int $matchId): void {
         }
       }
 
-      if ($tick === 39) {
+      if ($tick === (MATCH_TICKS_PER_PERIOD - 1)) {
         insert_event($matchId, $period, $tick, 0, 'HORN', [
           'text' => render($T, 'END_PERIOD', $seed, $period*1000 + 999, [
             'time' => '0:00',
