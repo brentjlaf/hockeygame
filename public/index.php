@@ -23,7 +23,7 @@ if (str_starts_with($path, '/api/')) {
 }
 
 if ($path === '/' || $path === '/index.php') {
-    $path = '/replay.html';
+    $path = '/playbyplay.html';
 }
 
 $publicPath = realpath($publicRoot . $path);
