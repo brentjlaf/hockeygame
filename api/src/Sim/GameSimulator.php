@@ -76,7 +76,11 @@ final class GameSimulator
 
         $awayTeam = $this->teamRow($awayTeamId);
 
-        $homePlan = $homePlan ?? $this->buildDefaultPlan($homeTeamId);
+        if ($homePlan === null) {
+            $homePlan = ((int)($homeTeam['is_bot'] ?? 0) === 1)
+                ? $this->buildAiPlan($homeTeamId, $homeTeam)
+                : $this->buildDefaultPlan($homeTeamId);
+        }
         $awayPlan = $awayPlan ?? $this->buildAiPlan($awayTeamId, $awayTeam);
 
         $homePlayers = $this->indexPlayersById($this->teamPlayers($homeTeamId));
@@ -88,9 +92,6 @@ final class GameSimulator
 
         $homeScore = 0;
         $awayScore = 0;
-
-        $homeBias = $this->teamAttackBias($homeTeam, $homePlan);
-        $awayBias = $this->teamAttackBias($awayTeam, $awayPlan);
 
         $homeGoalie = $this->playerByIdSafe($homePlayers, (int)($homePlan['goalie'] ?? 0), 'G');
         $awayGoalie = $this->playerByIdSafe($awayPlayers, (int)($awayPlan['goalie'] ?? 0), 'G');
@@ -111,8 +112,11 @@ final class GameSimulator
                 $gameLeft = max(0, self::PERIOD_SECONDS - ($tick * self::SECONDS_PER_TICK));
                 $saltBase = $period * 1000 + $tick * 10;
 
-                $homeLine = $this->lineForTick($homePlan, $tick);
-                $awayLine = $this->lineForTick($awayPlan, $tick);
+                $homePlanTick = $this->adjustPlanForGameState($homePlan, $homeScore, $awayScore, $period, $gameLeft, true);
+                $awayPlanTick = $this->adjustPlanForGameState($awayPlan, $homeScore, $awayScore, $period, $gameLeft, false);
+
+                $homeLine = $this->lineForTick($homePlanTick, $tick);
+                $awayLine = $this->lineForTick($awayPlanTick, $tick);
 
                 if ($homeLine['key'] !== $prevHomeLine) {
                     $this->insertEvent($gameId, $period, $tick, $gameLeft, 'SHIFT', [
@@ -143,20 +147,24 @@ final class GameSimulator
                 $this->addIceTime($stats, $homeLine['players'], self::SECONDS_PER_TICK);
                 $this->addIceTime($stats, $awayLine['players'], self::SECONDS_PER_TICK);
 
+                $homeBias = $this->teamAttackBias($homeTeam, $homePlanTick);
+                $awayBias = $this->teamAttackBias($awayTeam, $awayPlanTick);
                 $homePush = ($this->rng->float() + $homeBias) > ($this->rng->float() + $awayBias);
                 $attTeamId = $homePush ? $homeTeamId : $awayTeamId;
                 $attTeam = $homePush ? $homeTeam : $awayTeam;
+                $attPlan = $homePush ? $homePlanTick : $awayPlanTick;
+                $defPlan = $homePush ? $awayPlanTick : $homePlanTick;
                 $attLine = $homePush ? $homeLine : $awayLine;
                 $defLine = $homePush ? $awayLine : $homeLine;
                 $defPlayers = $homePush ? $awayPlayers : $homePlayers;
                 $defGoalie = $homePush ? $awayGoalie : $homeGoalie;
 
-                $shotChance = 0.18 + $this->tacticsShotBoost($homePush ? $homePlan : $awayPlan);
+                $shotChance = 0.18 + $this->tacticsShotBoost($attPlan);
                 $eventRoll = $this->rng->float();
 
                 if ($eventRoll < $shotChance) {
                     $lane = ['left', 'slot', 'right'][$this->rng->int(0, 2)];
-                    $danger = $this->computeDanger($homePush ? $homePlan : $awayPlan);
+                    $danger = $this->computeDanger($attPlan);
                     $shooter = $this->pickShooter($attLine['players'], $homePush ? $homePlayers : $awayPlayers);
 
                     $this->recordShot($stats, (int)$shooter['id']);
@@ -463,39 +471,15 @@ final class GameSimulator
 
     private function buildAiPlan(int $teamId, array $team): array
     {
-        $plan = $this->buildDefaultPlan($teamId);
-        $difficulty = (int)($team['bot_difficulty'] ?? 5);
         $style = strtoupper((string)($team['coach_style'] ?? 'BALANCED'));
+        $difficulty = $this->computeAiDifficulty($team);
 
-        $baseAggression = 45 + ($difficulty * 3);
-        $baseRisk = 40 + ($difficulty * 2);
+        $plan = $this->buildAiLineup($teamId, $style);
+        $plan['tactics'] = $this->buildAiTactics($style, $difficulty, (int)($team['rating'] ?? 1000));
+        $plan['ai'] = true;
+        $plan['coach_style'] = $style;
+        $plan['difficulty'] = $difficulty;
 
-        $tactics = $plan['tactics'] ?? [];
-        $tactics['aggression'] = min(80, max(30, $baseAggression));
-        $tactics['risk'] = min(75, max(25, $baseRisk));
-
-        switch ($style) {
-            case 'SNIPER':
-                $tactics['shoot_bias'] = 70;
-                $tactics['forecheck'] = 55;
-                break;
-            case 'GRIT':
-                $tactics['shoot_bias'] = 55;
-                $tactics['forecheck'] = 65;
-                break;
-            case 'DEFENSIVE':
-                $tactics['shoot_bias'] = 45;
-                $tactics['forecheck'] = 40;
-                $tactics['aggression'] = max(30, $tactics['aggression'] - 10);
-                $tactics['risk'] = max(20, $tactics['risk'] - 10);
-                break;
-            default:
-                $tactics['shoot_bias'] = 58;
-                $tactics['forecheck'] = 50;
-                break;
-        }
-
-        $plan['tactics'] = $tactics;
         return $plan;
     }
 
@@ -527,53 +511,57 @@ final class GameSimulator
 
         $botId = (int)$this->db->lastInsertId();
         $base = (int)round(($rating - 800) / 10) + 45;
-        $this->createBasicRoster($botId, $base);
+        $this->createBasicRoster($botId, $base, $style);
 
         return $botId;
     }
 
-    private function createBasicRoster(int $teamId, int $base): void
+    private function createBasicRoster(int $teamId, int $base, string $style): void
     {
         $names = [
             'Carter', 'Novak', 'Grayson', 'Miller', 'Reed', 'Benson', 'Hayes', 'Stone', 'Cruz', 'Keller',
             'Fox', 'Lane', 'Hart', 'Wells', 'Parker', 'Quinn', 'Sloane', 'Ryder', 'Shaw', 'Vale',
         ];
         $idx = 0;
+        $mods = $this->rosterStyleModifiers($style);
 
         foreach (range(1, 12) as $i) {
             $pos = ($i % 3 === 1) ? 'C' : (($i % 3 === 2) ? 'LW' : 'RW');
+            $mod = $mods['forward'] ?? [];
             $this->db->prepare(
                 'INSERT INTO players(team_id,name,pos,shot,pass_attr,speed,defense_attr,grit,goalie) VALUES(?,?,?,?,?,?,?,?,?)'
             )->execute([
                 $teamId,
                 $names[$idx++ % count($names)] . " F{$i}",
                 $pos,
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['shot'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['pass_attr'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['speed'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['defense_attr'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['grit'] ?? 0)),
                 10,
             ]);
         }
 
         foreach (range(1, 6) as $i) {
+            $mod = $mods['defense'] ?? [];
             $this->db->prepare(
                 'INSERT INTO players(team_id,name,pos,shot,pass_attr,speed,defense_attr,grit,goalie) VALUES(?,?,?,?,?,?,?,?,?)'
             )->execute([
                 $teamId,
                 $names[$idx++ % count($names)] . " D{$i}",
                 'D',
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['shot'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['pass_attr'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['speed'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['defense_attr'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['grit'] ?? 0)),
                 10,
             ]);
         }
 
         foreach (range(1, 2) as $i) {
+            $mod = $mods['goalie'] ?? [];
             $this->db->prepare(
                 'INSERT INTO players(team_id,name,pos,shot,pass_attr,speed,defense_attr,grit,goalie) VALUES(?,?,?,?,?,?,?,?,?)'
             )->execute([
@@ -582,12 +570,200 @@ final class GameSimulator
                 'G',
                 10,
                 10,
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(-10, 10),
-                $base + $this->rng->int(0, 15),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['speed'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['defense_attr'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(-10, 10) + ($mod['grit'] ?? 0)),
+                $this->clampAttribute($base + $this->rng->int(0, 15) + ($mod['goalie'] ?? 0)),
             ]);
         }
+    }
+
+    private function rosterStyleModifiers(string $style): array
+    {
+        switch (strtoupper($style)) {
+            case 'SNIPER':
+                return [
+                    'forward' => ['shot' => 6, 'pass_attr' => 3, 'speed' => 2, 'defense_attr' => -2, 'grit' => -2],
+                    'defense' => ['shot' => 2, 'pass_attr' => 3, 'speed' => 1, 'defense_attr' => 1, 'grit' => -2],
+                    'goalie' => ['goalie' => 1, 'defense_attr' => 1, 'speed' => 1, 'grit' => 0],
+                ];
+            case 'GRIT':
+                return [
+                    'forward' => ['shot' => -2, 'pass_attr' => 0, 'speed' => -1, 'defense_attr' => 2, 'grit' => 6],
+                    'defense' => ['shot' => -3, 'pass_attr' => 1, 'speed' => -1, 'defense_attr' => 3, 'grit' => 5],
+                    'goalie' => ['goalie' => 0, 'defense_attr' => 1, 'speed' => -1, 'grit' => 3],
+                ];
+            case 'DEFENSIVE':
+                return [
+                    'forward' => ['shot' => -3, 'pass_attr' => 2, 'speed' => 0, 'defense_attr' => 4, 'grit' => 2],
+                    'defense' => ['shot' => -4, 'pass_attr' => 1, 'speed' => 0, 'defense_attr' => 6, 'grit' => 3],
+                    'goalie' => ['goalie' => 4, 'defense_attr' => 3, 'speed' => 0, 'grit' => 1],
+                ];
+            default:
+                return [
+                    'forward' => [],
+                    'defense' => [],
+                    'goalie' => [],
+                ];
+        }
+    }
+
+    private function clampAttribute(int $value): int
+    {
+        return max(20, min(99, $value));
+    }
+
+    private function computeAiDifficulty(array $team): int
+    {
+        $rating = (int)($team['rating'] ?? 1000);
+        $ratingDifficulty = 4 + (int)round(($rating - 850) / 75);
+        $ratingDifficulty = max(2, min(9, $ratingDifficulty));
+        $stored = isset($team['bot_difficulty']) ? (int)$team['bot_difficulty'] : $ratingDifficulty;
+        $difficulty = (int)round(($stored + $ratingDifficulty) / 2);
+        return max(2, min(9, $difficulty));
+    }
+
+    private function buildAiLineup(int $teamId, string $style): array
+    {
+        $players = $this->teamPlayers($teamId);
+
+        $forwards = array_values(array_filter($players, fn(array $p) => $p['pos'] !== 'D' && $p['pos'] !== 'G'));
+        $defenders = array_values(array_filter($players, fn(array $p) => $p['pos'] === 'D'));
+        $goalies = array_values(array_filter($players, fn(array $p) => $p['pos'] === 'G'));
+
+        $forwardWeights = $this->styleWeights($style, 'forward');
+        $defenseWeights = $this->styleWeights($style, 'defense');
+
+        usort($forwards, fn(array $a, array $b) => $this->weightedScore($b, $forwardWeights) <=> $this->weightedScore($a, $forwardWeights));
+        usort($defenders, fn(array $a, array $b) => $this->weightedScore($b, $defenseWeights) <=> $this->weightedScore($a, $defenseWeights));
+        usort($goalies, fn(array $a, array $b) => ($b['goalie']) <=> ($a['goalie']));
+
+        $line = function (int $fStart, int $dStart) use ($forwards, $defenders): array {
+            return [
+                'F' => [
+                    $forwards[$fStart + 0]['id'] ?? 0,
+                    $forwards[$fStart + 1]['id'] ?? 0,
+                    $forwards[$fStart + 2]['id'] ?? 0,
+                ],
+                'D' => [
+                    $defenders[$dStart + 0]['id'] ?? 0,
+                    $defenders[$dStart + 1]['id'] ?? 0,
+                ],
+            ];
+        };
+
+        return [
+            'lines' => [
+                'L1' => $line(0, 0),
+                'L2' => $line(3, 2),
+                'L3' => $line(6, 4),
+                'L4' => $line(9, 0),
+            ],
+            'goalie' => $goalies[0]['id'] ?? 0,
+        ];
+    }
+
+    private function styleWeights(string $style, string $group): array
+    {
+        $style = strtoupper($style);
+        if ($group === 'defense') {
+            return match ($style) {
+                'SNIPER' => ['defense_attr' => 0.3, 'pass_attr' => 0.3, 'shot' => 0.15, 'speed' => 0.15, 'grit' => 0.1],
+                'GRIT' => ['defense_attr' => 0.35, 'grit' => 0.35, 'pass_attr' => 0.15, 'speed' => 0.1, 'shot' => 0.05],
+                'DEFENSIVE' => ['defense_attr' => 0.45, 'grit' => 0.25, 'pass_attr' => 0.15, 'speed' => 0.1, 'shot' => 0.05],
+                default => ['defense_attr' => 0.35, 'pass_attr' => 0.2, 'grit' => 0.2, 'speed' => 0.15, 'shot' => 0.1],
+            };
+        }
+
+        return match ($style) {
+            'SNIPER' => ['shot' => 0.45, 'pass_attr' => 0.25, 'speed' => 0.2, 'defense_attr' => 0.05, 'grit' => 0.05],
+            'GRIT' => ['grit' => 0.35, 'shot' => 0.2, 'pass_attr' => 0.15, 'speed' => 0.15, 'defense_attr' => 0.15],
+            'DEFENSIVE' => ['defense_attr' => 0.3, 'pass_attr' => 0.25, 'speed' => 0.15, 'shot' => 0.15, 'grit' => 0.15],
+            default => ['shot' => 0.3, 'pass_attr' => 0.25, 'speed' => 0.25, 'defense_attr' => 0.1, 'grit' => 0.1],
+        };
+    }
+
+    private function weightedScore(array $player, array $weights): float
+    {
+        $score = 0.0;
+        foreach ($weights as $key => $weight) {
+            $score += ((int)($player[$key] ?? 0)) * $weight;
+        }
+        return $score;
+    }
+
+    private function buildAiTactics(string $style, int $difficulty, int $rating): array
+    {
+        $ratingFactor = (int)round(($rating - 1000) / 40);
+        $baseAggression = 42 + ($difficulty * 3) + (int)round($ratingFactor / 2);
+        $baseRisk = 38 + ($difficulty * 2) + (int)round($ratingFactor / 2);
+        $baseShoot = 50 + ($difficulty * 2) + (int)round($ratingFactor / 3);
+        $baseForecheck = 46 + ($difficulty * 2) + (int)round($ratingFactor / 3);
+
+        $tactics = [
+            'aggression' => $baseAggression,
+            'risk' => $baseRisk,
+            'shoot_bias' => $baseShoot,
+            'forecheck' => $baseForecheck,
+        ];
+
+        switch ($style) {
+            case 'SNIPER':
+                $tactics['shoot_bias'] += 10;
+                $tactics['forecheck'] += 4;
+                $tactics['risk'] += 4;
+                break;
+            case 'GRIT':
+                $tactics['forecheck'] += 10;
+                $tactics['aggression'] += 6;
+                $tactics['risk'] += 2;
+                $tactics['shoot_bias'] -= 2;
+                break;
+            case 'DEFENSIVE':
+                $tactics['risk'] -= 8;
+                $tactics['aggression'] -= 6;
+                $tactics['forecheck'] -= 6;
+                $tactics['shoot_bias'] -= 4;
+                break;
+            default:
+                $tactics['shoot_bias'] += 2;
+                $tactics['forecheck'] += 2;
+                break;
+        }
+
+        foreach (['aggression' => [30, 90], 'risk' => [20, 85], 'shoot_bias' => [35, 85], 'forecheck' => [30, 85]] as $key => $bounds) {
+            $tactics[$key] = max($bounds[0], min($bounds[1], (int)round($tactics[$key])));
+        }
+
+        return $tactics;
+    }
+
+    private function adjustPlanForGameState(array $plan, int $homeScore, int $awayScore, int $period, int $gameLeft, bool $isHome): array
+    {
+        if (!($plan['ai'] ?? false) || $period < 3) {
+            return $plan;
+        }
+
+        $deficit = $isHome ? ($awayScore - $homeScore) : ($homeScore - $awayScore);
+        $tactics = $plan['tactics'] ?? [];
+
+        if ($gameLeft <= 300 && $deficit !== 0) {
+            if ($deficit > 0) {
+                $push = min(15, 5 + ($deficit * 4));
+                $tactics['aggression'] = min(90, (int)($tactics['aggression'] ?? 50) + $push);
+                $tactics['risk'] = min(85, (int)($tactics['risk'] ?? 50) + $push);
+                $tactics['shoot_bias'] = min(85, (int)($tactics['shoot_bias'] ?? 50) + 6 + ($deficit * 3));
+                $tactics['forecheck'] = min(85, (int)($tactics['forecheck'] ?? 50) + 5 + ($deficit * 2));
+            } else {
+                $protect = min(12, 4 + (abs($deficit) * 3));
+                $tactics['aggression'] = max(25, (int)($tactics['aggression'] ?? 50) - $protect);
+                $tactics['risk'] = max(20, (int)($tactics['risk'] ?? 50) - $protect);
+                $tactics['forecheck'] = max(30, (int)($tactics['forecheck'] ?? 50) - 3 - abs($deficit));
+            }
+        }
+
+        $plan['tactics'] = $tactics;
+        return $plan;
     }
 
     private function tacticsShotBoost(array $plan): float
