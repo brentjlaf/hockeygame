@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rink Micro-Sim Replay</title>
+  <style>
+    body { font-family: system-ui, Arial; margin: 20px; }
+    .top { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .score { font-size: 20px; font-weight: 700; }
+    .btn { padding: 10px 12px; border: 1px solid #ccc; background:#fff; cursor:pointer; border-radius:8px; }
+    .feed { margin-top: 16px; border:1px solid #ddd; border-radius:12px; padding:12px; height: 60vh; overflow:auto; background:#fafafa; }
+    .line { padding: 6px 0; border-bottom: 1px dashed #e5e5e5; }
+    .pheader { margin: 14px 0 8px; font-weight: 800; }
+    .muted { opacity: 0.75; }
+  </style>
+</head>
+<body>
+
+<div class="top">
+  <div class="score" id="score">Loading…</div>
+  <button class="btn" id="play">Play</button>
+  <button class="btn" id="pause">Pause</button>
+  <button class="btn" id="reset">Reset</button>
+  <label class="muted">Speed:
+    <select id="speed">
+      <option value="450">x1</option>
+      <option value="250">x2</option>
+      <option value="120">x4</option>
+    </select>
+  </label>
+</div>
+
+<div class="feed" id="feed"></div>
+
+<script>
+  const TEAM_ID = 1;   // <-- set me
+  const MATCH_ID = 1;  // <-- set me
+
+  let all = [];
+  let idx = 0;
+  let timer = null;
+
+  function el(tag, cls, txt) {
+    const d = document.createElement(tag);
+    if (cls) d.className = cls;
+    if (txt != null) d.textContent = txt;
+    return d;
+  }
+
+  async function load() {
+    const res = await fetch(`/api/match_result.php?match_id=${MATCH_ID}&team_id=${TEAM_ID}`);
+    const data = await res.json();
+    const m = data.match;
+    document.getElementById('score').textContent =
+      `${m.home_team.name} ${m.home_score} — ${m.away_team?.name ?? 'TBD'} ${m.away_score}`;
+
+    all = data.events || [];
+    renderFeed(true);
+  }
+
+  function renderFeed(reset=false) {
+    const feed = document.getElementById('feed');
+    if (reset) feed.innerHTML = '';
+    let lastPeriod = null;
+
+    for (let i = 0; i < idx; i++) {
+      const ev = all[i];
+      if (ev.period !== lastPeriod) {
+        feed.appendChild(el('div', 'pheader', `Period ${ev.period}`));
+        lastPeriod = ev.period;
+      }
+      feed.appendChild(el('div', 'line', ev.text || `[${ev.event_type}]`));
+    }
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function play() {
+    stop();
+    const speed = parseInt(document.getElementById('speed').value, 10);
+    timer = setInterval(() => {
+      if (idx >= all.length) return stop();
+      idx++;
+      document.getElementById('feed').innerHTML = '';
+      renderFeed(true);
+    }, speed);
+  }
+
+  function stop() {
+    if (timer) clearInterval(timer);
+    timer = null;
+  }
+
+  document.getElementById('play').onclick = play;
+  document.getElementById('pause').onclick = stop;
+  document.getElementById('reset').onclick = () => { stop(); idx = 0; renderFeed(true); };
+
+  load();
+</script>
+</body>
+</html>
