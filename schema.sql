@@ -1,6 +1,10 @@
 -- Phase 1 schema for Rink Manager Micro-Sim (Multiplayer + AI fallback + Play-by-Play)
 -- Run this once in MySQL.
 
+-- ======================================================
+-- CORE
+-- ======================================================
+
 -- USERS (minimal; replace with your real auth later)
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -10,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- TEAMS
+-- TEAMS (human/bot, rating)
 CREATE TABLE IF NOT EXISTS teams (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NULL,
@@ -25,7 +29,7 @@ CREATE TABLE IF NOT EXISTS teams (
   INDEX(rating)
 );
 
--- PLAYERS
+-- PLAYERS (attributes, level/xp)
 CREATE TABLE IF NOT EXISTS players (
   id INT AUTO_INCREMENT PRIMARY KEY,
   team_id INT NOT NULL,
@@ -47,7 +51,7 @@ CREATE TABLE IF NOT EXISTS players (
   INDEX(pos)
 );
 
--- MATCHES
+-- MATCHES (seed, status, score)
 CREATE TABLE IF NOT EXISTS matches (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   season_id INT NOT NULL DEFAULT 1,
@@ -64,6 +68,36 @@ CREATE TABLE IF NOT EXISTS matches (
   INDEX(home_team_id),
   INDEX(away_team_id)
 );
+
+-- MATCH SUBMISSIONS (plan_json per team)
+CREATE TABLE IF NOT EXISTS match_submissions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  match_id BIGINT NOT NULL,
+  team_id INT NOT NULL,
+  submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  plan_json JSON NOT NULL,
+  UNIQUE KEY uniq_match_team (match_id, team_id),
+  INDEX(match_id),
+  INDEX(team_id)
+);
+
+-- MATCH EVENTS (play-by-play feed)
+CREATE TABLE IF NOT EXISTS match_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  match_id BIGINT NOT NULL,
+  period TINYINT NOT NULL,          -- 1..3
+  tick TINYINT NOT NULL,            -- 0..39 (40 ticks/period)
+  game_time_left SMALLINT NOT NULL, -- 0..1200 (20:00)
+  event_type VARCHAR(30) NOT NULL,
+  payload JSON NOT NULL,            -- includes "text" plus details
+  INDEX(match_id),
+  INDEX(match_id, period, tick),
+  INDEX(event_type)
+);
+
+-- ======================================================
+-- LEAGUE
+-- ======================================================
 
 -- SEASONS
 CREATE TABLE IF NOT EXISTS seasons (
@@ -129,6 +163,10 @@ CREATE TABLE IF NOT EXISTS player_match_stats (
   INDEX(player_id)
 );
 
+-- ======================================================
+-- LEGACY (kept for backward compatibility with older endpoints)
+-- ======================================================
+
 -- GAMES
 CREATE TABLE IF NOT EXISTS games (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -144,32 +182,6 @@ CREATE TABLE IF NOT EXISTS games (
   INDEX(status),
   INDEX(home_team_id),
   INDEX(away_team_id)
-);
-
--- PLANS
-CREATE TABLE IF NOT EXISTS match_submissions (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  match_id BIGINT NOT NULL,
-  team_id INT NOT NULL,
-  submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  plan_json JSON NOT NULL,
-  UNIQUE KEY uniq_match_team (match_id, team_id),
-  INDEX(match_id),
-  INDEX(team_id)
-);
-
--- PLAY-BY-PLAY EVENTS
-CREATE TABLE IF NOT EXISTS match_events (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  match_id BIGINT NOT NULL,
-  period TINYINT NOT NULL,          -- 1..3
-  tick TINYINT NOT NULL,            -- 0..39 (40 ticks/period)
-  game_time_left SMALLINT NOT NULL, -- 0..1200 (20:00)
-  event_type VARCHAR(30) NOT NULL,
-  payload JSON NOT NULL,            -- includes "text" plus details
-  INDEX(match_id),
-  INDEX(match_id, period, tick),
-  INDEX(event_type)
 );
 
 -- GAME EVENTS
