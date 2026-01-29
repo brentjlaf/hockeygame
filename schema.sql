@@ -105,6 +105,10 @@ CREATE TABLE IF NOT EXISTS seasons (
   name VARCHAR(60) NOT NULL,
   starts_at DATE NULL,
   ends_at DATE NULL,
+  length_days INT NOT NULL DEFAULT 30,
+  rating_soft_reset_pct DECIMAL(5,2) NOT NULL DEFAULT 0.75,
+  playoff_team_count INT NOT NULL DEFAULT 8,
+  status ENUM('PLANNED','ACTIVE','COMPLETED') NOT NULL DEFAULT 'ACTIVE',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

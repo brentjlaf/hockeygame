@@ -21,6 +21,13 @@ define('MATCH_SECONDS_PER_TICK', 30);
 define('MATCH_HUMAN_WAIT_SECONDS', 10);
 define('MATCH_SUBMISSION_WINDOW_MINUTES', 10);
 
+function current_season_id(PDO $pdo = null): int {
+  $pdo = $pdo ?? db();
+  $stmt = $pdo->query("SELECT id FROM seasons WHERE status='ACTIVE' ORDER BY starts_at DESC, id DESC LIMIT 1");
+  $row = $stmt->fetch();
+  return $row ? (int)$row['id'] : 1;
+}
+
 function db(): PDO {
   static $pdo = null;
   if ($pdo) return $pdo;
