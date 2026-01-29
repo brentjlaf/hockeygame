@@ -1,28 +1,37 @@
 # Rink Micro-Sim (Phase 1)
 
-## What you get
-- Matchmaking: tries human opponent; if none, falls back to AI bot
-- Plans (plan_json): submit lineup/tactics
-- Server sim: 3 periods × 40 ticks (40s real = 20:00 hockey time)
-- Stores play-by-play in `match_events` (payload includes `text`)
-- Result endpoint returns score + events (for replay UI)
+## Project layout
+- `public/` public web root (front controller at `public/index.php`)
+- `api/` API endpoints (loaded by the front controller)
+- `src/` PHP classes
+- `config/` environment + database configuration
+- `schema.sql` MySQL schema
 
-## Setup
-1) Create a MySQL DB named `hockeysim` (or change DB_NAME in `api/bootstrap.php`)
-2) Run `schema.sql`
-3) Point your PHP server docroot at this project folder so `/api/*` and `/public/*` are reachable
+## Local setup
+1) Create a MySQL DB named `hockeysim` (or set `DB_NAME`).
+2) Run `schema.sql` against that database.
+3) Configure DB credentials in `config/database.php` or via `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` env vars.
+
+## Run the app
+From the repo root:
+```bash
+php -S localhost:8000 -t public public/index.php
+```
+
+Then visit:
+- `http://localhost:8000/` for the replay UI
+- `http://localhost:8000/api/match_find.php?team_id=1` for API endpoints
 
 ## Quick test
 Phase 1 uses `team_id` in the query string instead of real auth.
 
 ### Create a team
-Example SQL:
 ```sql
 INSERT INTO teams(user_id,name,rating,is_bot) VALUES(NULL,'My Team',1000,0);
 ```
 
 ### Add a roster
-Easiest: create a one-off PHP script that calls `create_basic_roster($teamId)` from `api/bootstrap.php`,
+Create a one-off PHP script that calls `create_basic_roster($teamId)` from `api/bootstrap.php`,
 or insert players manually.
 
 ### Run a match
@@ -44,4 +53,4 @@ or insert players manually.
 }
 ```
 
-Open `/public/replay.html` and set TEAM_ID + MATCH_ID.
+Open `/` (or `/public/replay.html` when served) and set TEAM_ID + MATCH_ID.

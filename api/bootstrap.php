@@ -3,10 +3,18 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
-const DB_HOST = 'localhost';
-const DB_NAME = 'hockeysim';
-const DB_USER = 'root';
-const DB_PASS = '';
+$configPath = dirname(__DIR__) . '/config/database.php';
+$dbConfig = is_file($configPath) ? require $configPath : [
+  'host' => 'localhost',
+  'name' => 'hockeysim',
+  'user' => 'root',
+  'pass' => '',
+];
+
+define('DB_HOST', $dbConfig['host']);
+define('DB_NAME', $dbConfig['name']);
+define('DB_USER', $dbConfig['user']);
+define('DB_PASS', $dbConfig['pass']);
 
 function db(): PDO {
   static $pdo = null;
