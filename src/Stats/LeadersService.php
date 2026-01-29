@@ -8,84 +8,96 @@ final class LeadersService {
     $this->pdo = $pdo;
   }
 
-  public function fetchGoalLeaders(int $seasonId = 1, int $limit = 10): array {
-    $teamGames = $this->fetchTeamGames($seasonId);
+  public function fetchSkaterLeaders(string $category, int $seasonId = 1, int $limit = 10): array {
+    $orderBy = match ($category) {
+      'assists' => 'assists DESC, goals DESC, points DESC',
+      'goals' => 'goals DESC, assists DESC, points DESC',
+      default => 'points DESC, goals DESC, assists DESC',
+    };
 
     $sql = "
       SELECT p.id, p.name, p.team_id, t.name AS team_name,
-        COALESCE(g.goals, 0) AS goals,
-        COALESCE(s.shots, 0) AS shots
+        ps.games_played, ps.goals, ps.assists, ps.points
       FROM players p
       JOIN teams t ON t.id = p.team_id
-      LEFT JOIN (
-        SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(me.payload, '$.shooter_id')) AS UNSIGNED) AS player_id,
-          COUNT(*) AS goals
-        FROM match_events me
-        JOIN matches m ON m.id = me.match_id
-        WHERE me.event_type='GOAL'
-          AND m.status='DONE'
-          AND m.season_id=?
-        GROUP BY player_id
-      ) g ON g.player_id = p.id
-      LEFT JOIN (
-        SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(me.payload, '$.shooter_id')) AS UNSIGNED) AS player_id,
-          COUNT(*) AS shots
-        FROM match_events me
-        JOIN matches m ON m.id = me.match_id
-        WHERE me.event_type='SHOT'
-          AND m.status='DONE'
-          AND m.season_id=?
-        GROUP BY player_id
-      ) s ON s.player_id = p.id
+      JOIN player_season_stats ps
+        ON ps.player_id = p.id
+        AND ps.season_id = ?
       WHERE p.pos <> 'G'
-        AND (g.goals IS NOT NULL OR s.shots IS NOT NULL)
-      ORDER BY goals DESC, shots DESC, p.name ASC
+        AND ps.games_played > 0
+      ORDER BY {$orderBy}, p.name ASC
       LIMIT ?
     ";
 
     $stmt = $this->pdo->prepare($sql);
-    $stmt->execute([$seasonId, $seasonId, $limit]);
+    $stmt->execute([$seasonId, $limit]);
     $rows = $stmt->fetchAll();
 
     $leaders = [];
     foreach ($rows as $row) {
-      $teamId = (int)$row['team_id'];
-      $goals = (int)$row['goals'];
-      $shots = (int)$row['shots'];
-      $games = $teamGames[$teamId] ?? 0;
       $leaders[] = [
         'player_id' => (int)$row['id'],
         'player_name' => $row['name'],
-        'team_id' => $teamId,
+        'team_id' => (int)$row['team_id'],
         'team_name' => $row['team_name'],
-        'games_played' => $games,
-        'goals' => $goals,
-        'shots' => $shots,
-        'shooting_pct' => $shots > 0 ? round(($goals / $shots) * 100, 1) : 0.0,
+        'games_played' => (int)$row['games_played'],
+        'goals' => (int)$row['goals'],
+        'assists' => (int)$row['assists'],
+        'points' => (int)$row['points'],
       ];
     }
 
     return $leaders;
   }
 
-  private function fetchTeamGames(int $seasonId): array {
-    $stmt = $this->pdo->prepare("
-      SELECT team_id, COUNT(*) AS games_played
-      FROM (
-        SELECT home_team_id AS team_id FROM matches WHERE status='DONE' AND season_id=?
-        UNION ALL
-        SELECT away_team_id AS team_id FROM matches WHERE status='DONE' AND season_id=?
-      ) AS all_games
-      GROUP BY team_id
-    ");
-    $stmt->execute([$seasonId, $seasonId]);
+  public function fetchGoalieLeaders(int $seasonId = 1, int $limit = 10, int $minGames = 3): array {
+    $sql = "
+      SELECT p.id, p.name, p.team_id, t.name AS team_name,
+        ps.games_played, ps.saves, ps.shots_against, ps.wins
+      FROM players p
+      JOIN teams t ON t.id = p.team_id
+      JOIN player_season_stats ps
+        ON ps.player_id = p.id
+        AND ps.season_id = ?
+      WHERE p.pos = 'G'
+        AND ps.games_played >= ?
+      ORDER BY ps.saves DESC, ps.wins DESC, p.name ASC
+      LIMIT ?
+    ";
+
+    $stmt = $this->pdo->prepare($sql);
+    $stmt->execute([$seasonId, $minGames, $limit]);
     $rows = $stmt->fetchAll();
 
-    $games = [];
+    $leaders = [];
     foreach ($rows as $row) {
-      $games[(int)$row['team_id']] = (int)$row['games_played'];
+      $shotsAgainst = (int)$row['shots_against'];
+      $saves = (int)$row['saves'];
+      $goalsAgainst = max(0, $shotsAgainst - $saves);
+      $games = max(1, (int)$row['games_played']);
+      $savePct = $shotsAgainst > 0 ? round(($saves / $shotsAgainst) * 100, 1) : 0.0;
+      $gaa = round(($goalsAgainst / $games), 2);
+
+      $leaders[] = [
+        'player_id' => (int)$row['id'],
+        'player_name' => $row['name'],
+        'team_id' => (int)$row['team_id'],
+        'team_name' => $row['team_name'],
+        'games_played' => (int)$row['games_played'],
+        'wins' => (int)$row['wins'],
+        'saves' => $saves,
+        'shots_against' => $shotsAgainst,
+        'save_pct' => $savePct,
+        'gaa' => $gaa,
+      ];
     }
 
-    return $games;
+    usort($leaders, function(array $a, array $b): int {
+      return [$b['save_pct'], $a['gaa'], $b['wins'], $b['saves'], $a['player_name']]
+        <=>
+        [$a['save_pct'], $b['gaa'], $a['wins'], $a['saves'], $b['player_name']];
+    });
+
+    return array_slice($leaders, 0, $limit);
   }
 }

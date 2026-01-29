@@ -7,9 +7,22 @@ header('Content-Type: text/html; charset=utf-8');
 
 $seasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 1;
 $limit = isset($_GET['limit']) ? max(1, (int)$_GET['limit']) : 10;
+$category = isset($_GET['category']) ? strtolower((string)$_GET['category']) : 'points';
+$minGames = isset($_GET['min_gp']) ? max(0, (int)$_GET['min_gp']) : 3;
 
 $service = new LeadersService(db());
-$leaders = $service->fetchGoalLeaders($seasonId, $limit);
+if ($category === 'goalies') {
+  $leaders = $service->fetchGoalieLeaders($seasonId, $limit, $minGames);
+} else {
+  $leaders = $service->fetchSkaterLeaders($category, $seasonId, $limit);
+}
+
+$tabs = [
+  'points' => 'Points',
+  'goals' => 'Goals',
+  'assists' => 'Assists',
+  'goalies' => 'Goalies',
+];
 
 $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
@@ -23,6 +36,9 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
     body { font-family: Arial, sans-serif; background:#0b1522; color:#f8fafc; margin:0; padding:24px; }
     h1 { margin-bottom: 8px; }
     .meta { color:#cbd5f5; margin-bottom: 16px; }
+    .tabs { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+    .tab { padding:8px 14px; border-radius:999px; text-decoration:none; color:#cbd5f5; background:#111c2b; border:1px solid #223148; font-size:14px; }
+    .tab.active { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
     table { width:100%; border-collapse: collapse; background:#111c2b; border-radius:8px; overflow:hidden; }
     th, td { padding:10px 12px; border-bottom:1px solid #223148; text-align:left; }
     th { background:#142338; text-transform:uppercase; font-size:12px; letter-spacing:0.08em; }
@@ -36,8 +52,21 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
   <h1>League Leaders</h1>
   <div class="meta">Season <?= $seasonId ?> · Top <?= $limit ?></div>
 
+  <div class="tabs">
+    <?php foreach ($tabs as $key => $label): ?>
+      <?php
+        $isActive = $key === $category;
+        $url = '?season_id='.$seasonId.'&limit='.$limit.'&category='.$key;
+        if ($key === 'goalies') {
+          $url .= '&min_gp='.$minGames;
+        }
+      ?>
+      <a class="tab <?= $isActive ? 'active' : '' ?>" href="<?= $url ?>"><?= $label ?></a>
+    <?php endforeach; ?>
+  </div>
+
   <?php if (!$leaders): ?>
-    <div class="empty">No scoring data yet.</div>
+    <div class="empty">No leader data yet.</div>
   <?php else: ?>
     <table>
       <thead>
@@ -46,9 +75,16 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
           <th>Player</th>
           <th>Team</th>
           <th class="right">GP</th>
-          <th class="right">G</th>
-          <th class="right">S</th>
-          <th class="right">SH%</th>
+          <?php if ($category === 'goalies'): ?>
+            <th class="right">W</th>
+            <th class="right">SV%</th>
+            <th class="right">GAA</th>
+            <th class="right">SA</th>
+          <?php else: ?>
+            <th class="right">G</th>
+            <th class="right">A</th>
+            <th class="right">PTS</th>
+          <?php endif; ?>
         </tr>
       </thead>
       <tbody>
@@ -58,13 +94,23 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
             <td><?= $escape($row['player_name']) ?></td>
             <td><?= $escape($row['team_name']) ?></td>
             <td class="right"><?= $row['games_played'] ?></td>
-            <td class="right"><?= $row['goals'] ?></td>
-            <td class="right"><?= $row['shots'] ?></td>
-            <td class="right"><?= number_format($row['shooting_pct'], 1) ?></td>
+            <?php if ($category === 'goalies'): ?>
+              <td class="right"><?= $row['wins'] ?></td>
+              <td class="right"><?= number_format($row['save_pct'], 1) ?></td>
+              <td class="right"><?= number_format($row['gaa'], 2) ?></td>
+              <td class="right"><?= $row['shots_against'] ?></td>
+            <?php else: ?>
+              <td class="right"><?= $row['goals'] ?></td>
+              <td class="right"><?= $row['assists'] ?></td>
+              <td class="right"><?= $row['points'] ?></td>
+            <?php endif; ?>
           </tr>
         <?php endforeach; ?>
       </tbody>
     </table>
+    <?php if ($category === 'goalies'): ?>
+      <div class="meta">Minimum GP: <?= $minGames ?></div>
+    <?php endif; ?>
   <?php endif; ?>
 </body>
 </html>

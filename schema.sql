@@ -65,6 +65,70 @@ CREATE TABLE IF NOT EXISTS matches (
   INDEX(away_team_id)
 );
 
+-- SEASONS
+CREATE TABLE IF NOT EXISTS seasons (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(60) NOT NULL,
+  starts_at DATE NULL,
+  ends_at DATE NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- TEAM SEASON STATS (standings)
+CREATE TABLE IF NOT EXISTS team_season_stats (
+  season_id INT NOT NULL,
+  team_id INT NOT NULL,
+  games_played INT NOT NULL DEFAULT 0,
+  wins INT NOT NULL DEFAULT 0,
+  losses INT NOT NULL DEFAULT 0,
+  ties INT NOT NULL DEFAULT 0,
+  goals_for INT NOT NULL DEFAULT 0,
+  goals_against INT NOT NULL DEFAULT 0,
+  points INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (season_id, team_id),
+  INDEX(team_id),
+  INDEX(season_id)
+);
+
+-- PLAYER SEASON STATS (leaders)
+CREATE TABLE IF NOT EXISTS player_season_stats (
+  season_id INT NOT NULL,
+  player_id INT NOT NULL,
+  team_id INT NOT NULL,
+  games_played INT NOT NULL DEFAULT 0,
+  goals INT NOT NULL DEFAULT 0,
+  assists INT NOT NULL DEFAULT 0,
+  points INT NOT NULL DEFAULT 0,
+  shots INT NOT NULL DEFAULT 0,
+  saves INT NOT NULL DEFAULT 0,
+  shots_against INT NOT NULL DEFAULT 0,
+  wins INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (season_id, player_id),
+  INDEX(team_id),
+  INDEX(season_id),
+  INDEX(player_id)
+);
+
+-- PLAYER MATCH STATS (box score)
+CREATE TABLE IF NOT EXISTS player_match_stats (
+  match_id BIGINT NOT NULL,
+  season_id INT NOT NULL,
+  player_id INT NOT NULL,
+  team_id INT NOT NULL,
+  games_played INT NOT NULL DEFAULT 1,
+  goals INT NOT NULL DEFAULT 0,
+  assists INT NOT NULL DEFAULT 0,
+  points INT NOT NULL DEFAULT 0,
+  shots INT NOT NULL DEFAULT 0,
+  saves INT NOT NULL DEFAULT 0,
+  shots_against INT NOT NULL DEFAULT 0,
+  wins INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (match_id, player_id),
+  INDEX(team_id),
+  INDEX(season_id),
+  INDEX(player_id)
+);
+
 -- GAMES
 CREATE TABLE IF NOT EXISTS games (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
