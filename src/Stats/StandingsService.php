@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__.'/../Season/Division.php';
+
 final class StandingsService {
   private PDO $pdo;
 
@@ -28,6 +30,7 @@ final class StandingsService {
     $rows = $stmt->fetchAll();
 
     foreach ($rows as &$row) {
+      $division = Division::fromRating((int)$row['rating']);
       $row['team_id'] = (int)$row['id'];
       unset($row['id']);
       $row['rating'] = (int)$row['rating'];
@@ -41,6 +44,8 @@ final class StandingsService {
       $row['goals_against'] = (int)$row['goals_against'];
       $row['goal_diff'] = $row['goals_for'] - $row['goals_against'];
       $row['team_name'] = $row['name'];
+      $row['division'] = $division['name'];
+      $row['division_key'] = $division['key'];
       unset($row['name']);
     }
     unset($row);

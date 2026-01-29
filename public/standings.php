@@ -2,12 +2,15 @@
 declare(strict_types=1);
 require __DIR__.'/../api/bootstrap.php';
 require __DIR__.'/../src/Stats/StandingsService.php';
+require __DIR__.'/../src/Season/SeasonService.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
-$seasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 1;
+$seasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 0;
 $service = new StandingsService(db());
-$standings = $service->fetchStandings($seasonId);
+$seasonService = new SeasonService(db());
+$season = $seasonId > 0 ? $seasonService->fetchSeason($seasonId) : $seasonService->fetchCurrentSeason();
+$standings = $service->fetchStandings($season['id']);
 
 $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
@@ -34,7 +37,7 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
 </head>
 <body>
   <h1>League Standings</h1>
-  <div class="meta">Season <?= $seasonId ?></div>
+  <div class="meta">Season <?= $season['id'] ?> · <?= $escape($season['name']) ?></div>
 
   <?php if (!$standings): ?>
     <div class="empty">No completed games yet.</div>
@@ -44,6 +47,7 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
         <tr>
           <th class="rank sortable" data-type="number">#</th>
           <th class="sortable" data-type="string">Team</th>
+          <th class="sortable" data-type="string">Division</th>
           <th class="right sortable" data-type="number">GP</th>
           <th class="right sortable" data-type="number">W</th>
           <th class="right sortable" data-type="number">L</th>
@@ -59,6 +63,7 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
           <tr>
             <td class="rank"><?= $row['rank'] ?></td>
             <td><?= $escape($row['team_name']) ?></td>
+            <td><?= $escape($row['division']) ?></td>
             <td class="right"><?= $row['games_played'] ?></td>
             <td class="right"><?= $row['wins'] ?></td>
             <td class="right"><?= $row['losses'] ?></td>
