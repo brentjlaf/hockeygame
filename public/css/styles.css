@@ -34,6 +34,12 @@ body {
   margin-bottom: 24px;
 }
 
+.quick-links {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .hero h1 {
   margin: 0;
   font-size: 28px;
