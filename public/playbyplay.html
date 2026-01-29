@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rink Micro-Sim Play-by-Play</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>Game Center: Play-by-Play & Highlights</h1>
+      <div class="scoreboard">
+        <div class="score-card">
+          <h2 id="homeName">Home</h2>
+          <div class="score" id="homeScore">0</div>
+        </div>
+        <div class="score-card">
+          <h2 id="awayName">Away</h2>
+          <div class="score" id="awayScore">0</div>
+        </div>
+        <div class="score-card">
+          <h2>Status</h2>
+          <div class="score" id="gameStatus">Loading…</div>
+          <div class="status-pill" id="lastUpdated">Updated —</div>
+        </div>
+      </div>
+      <div class="controls">
+        <label>
+          Game ID
+          <input type="number" id="gameIdInput" min="1" />
+        </label>
+        <button class="button primary" id="loadGame">Load game</button>
+        <button class="button" id="refresh">Refresh</button>
+        <button class="button live" id="toggleLive">Live: On</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="panel">
+        <h3>Highlights Summary</h3>
+        <div class="stat-grid" id="statGrid"></div>
+        <ol class="highlight-list" id="highlightList"></ol>
+      </section>
+
+      <section class="panel">
+        <h3>Play-by-Play Feed</h3>
+        <div class="feed" id="feed"></div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/js/playbyplay.js"></script>
+</body>
+</html>
