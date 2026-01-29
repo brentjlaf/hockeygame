@@ -65,6 +65,23 @@ CREATE TABLE IF NOT EXISTS matches (
   INDEX(away_team_id)
 );
 
+-- GAMES
+CREATE TABLE IF NOT EXISTS games (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  season_id INT NOT NULL DEFAULT 1,
+  home_team_id INT NOT NULL,
+  away_team_id INT NOT NULL,
+  status ENUM('SIMULATING','DONE','CANCELLED') NOT NULL DEFAULT 'SIMULATING',
+  seed BIGINT NOT NULL,
+  home_score TINYINT NULL,
+  away_score TINYINT NULL,
+  simulated_at DATETIME NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX(status),
+  INDEX(home_team_id),
+  INDEX(away_team_id)
+);
+
 -- PLANS
 CREATE TABLE IF NOT EXISTS match_submissions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -88,5 +105,19 @@ CREATE TABLE IF NOT EXISTS match_events (
   payload JSON NOT NULL,            -- includes "text" plus details
   INDEX(match_id),
   INDEX(match_id, period, tick),
+  INDEX(event_type)
+);
+
+-- GAME EVENTS
+CREATE TABLE IF NOT EXISTS game_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  game_id BIGINT NOT NULL,
+  period TINYINT NOT NULL,          -- 1..3
+  tick TINYINT NOT NULL,            -- 0..39 (40 ticks/period)
+  game_time_left SMALLINT NOT NULL, -- 0..1200 (20:00)
+  event_type VARCHAR(30) NOT NULL,
+  payload JSON NOT NULL,            -- includes "text" plus details
+  INDEX(game_id),
+  INDEX(game_id, period, tick),
   INDEX(event_type)
 );
