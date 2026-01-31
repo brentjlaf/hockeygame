@@ -10,7 +10,8 @@ $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $path = '/' . ltrim($uri, '/');
 
 if (str_starts_with($path, '/api/')) {
-    $apiPath = realpath($apiRoot . $path);
+    $relativeApiPath = substr($path, strlen('/api'));
+    $apiPath = realpath($apiRoot . $relativeApiPath);
     if ($apiPath && str_starts_with($apiPath, realpath($apiRoot)) && is_file($apiPath)) {
         require $apiPath;
         exit;
