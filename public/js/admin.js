@@ -21,7 +21,7 @@ async function sendAction(action) {
   }
 
   setStatus('Working…');
-  const res = await fetch('api/admin/match_action.php', {
+  const res = await fetch('/api/admin/match_action.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, match_id: matchId }),
@@ -74,7 +74,7 @@ function renderMatches(matches) {
 }
 
 async function loadMatches() {
-  const res = await fetch('api/admin/matches.php');
+  const res = await fetch('/api/admin/matches.php');
   const data = await res.json();
   if (data.error) {
     elements.matchesTable.innerHTML = `<div class="empty">${data.error}</div>`;

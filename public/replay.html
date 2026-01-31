@@ -49,7 +49,7 @@
   }
 
   async function load() {
-    const res = await fetch(`api/match_result.php?match_id=${MATCH_ID}&team_id=${TEAM_ID}`);
+    const res = await fetch(`/api/match_result.php?match_id=${MATCH_ID}&team_id=${TEAM_ID}`);
     const data = await res.json();
     const m = data.match;
     document.getElementById('score').textContent =

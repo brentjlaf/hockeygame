@@ -22,7 +22,7 @@ php -S localhost:8000 -t public public/index.php
 ```
 
 Then visit:
-- `http://localhost:8000/` for the replay UI
+- `http://localhost:8000/` for the game center UI
 - `http://localhost:8000/install.php` to configure the database
 - `http://localhost:8000/api/match_find.php?team_id=1` for API endpoints
 
@@ -66,4 +66,4 @@ or insert players manually.
 }
 ```
 
-Open `/` (or `/public/replay.html` when served) and set TEAM_ID + MATCH_ID.
+Open `/replay.html` and set TEAM_ID + MATCH_ID.
