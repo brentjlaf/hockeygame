@@ -10,6 +10,7 @@ $schemaFile = $projectRoot . '/schema.sql';
 $installed = is_file($envPath);
 $errors = [];
 $successMessage = null;
+$successRedirect = null;
 
 function render_field(string $name, string $label, string $value = '', string $type = 'text'): void {
     $escapedValue = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
@@ -79,7 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 import_schema($pdo, $schemaFile);
-                $successMessage = 'Installation complete! Database schema imported and configuration saved. You can now visit the app at <a href="/">/</a>.';
+                $successRedirect = '/admin.html';
+                $successMessage = 'Installation complete! Database schema imported and configuration saved. Redirecting you to the admin control room.';
             } catch (Throwable $e) {
                 $errors[] = 'Database import failed: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
             }
@@ -105,6 +107,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .error { padding: 12px; background: #ffecec; border: 1px solid #f5c2c2; border-radius: 4px; color: #a40000; margin-bottom: 12px; }
         .success { padding: 12px; background: #e6ffed; border: 1px solid #b7f5cb; border-radius: 4px; color: #0b6b2a; margin-bottom: 12px; }
     </style>
+    <?php if ($successRedirect): ?>
+        <meta http-equiv="refresh" content="2;url=<?php echo htmlspecialchars($successRedirect, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endif; ?>
 </head>
 <body>
 <div class="container">
@@ -121,7 +126,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     <?php endif; ?>
     <?php if ($successMessage): ?>
-        <div class="success"><?php echo $successMessage; ?></div>
+        <div class="success">
+            <?php echo $successMessage; ?>
+            <?php if ($successRedirect): ?>
+                <div>If you are not redirected, <a href="<?php echo htmlspecialchars($successRedirect, ENT_QUOTES, 'UTF-8'); ?>">click here to open the admin page</a>.</div>
+            <?php endif; ?>
+        </div>
     <?php else: ?>
         <form method="post">
             <?php render_field('db_host', 'Database Host', $_POST['db_host'] ?? 'localhost'); ?>
